@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- 指向Dao接口 ，做dao实现 -->
+<mapper namespace="com.zs.pms.dao.UserDao">
+	
+	<resultMap type="TUser" id="usermap">
+		<!-- 用id关联权限后id都会变为0  要加result -->
+		<result property="id" column="id"/>
+		<!-- 
+			一对一关联                               所有的association放在一起
+			property 属性名
+			column   关联的字段名
+			select   关联执行的sql名称
+			执行完sql返回的对象赋值给属性dept
+		 -->
+		<association property="dept" column="dept" select="getDept" />
+		
+		<!-- 
+			一对多关联                                 所有的collection放在一起
+			property 属性名
+			column   关联的字段名      用户 id
+			select   关联执行的sql名称
+			执行完sql返回的对象赋值给属性sals
+		 -->
+		
+		<collection property="permissions" column="id" select="getPermissions" ofType="TPermission" />
+		
+	</resultMap>
+	<!-- 只关联部门 -->
+	<resultMap type="TUser" id="usermap2">
+		<association property="dept" column="dept" select="getDept" />
+	</resultMap>
+	<!-- 关联执行的sql 部门 -->
+	<select id="getDept" parameterType="int" resultType="TDep">
+		select * from tdep where id=#{dept}
+	</select>
+	<!-- 通过id查权限 -->
+	<select id="getPermissions" parameterType="int" resultType="TPermission">
+		Select * from tpermission where id in(select pid from  trolepermission where rid in(select rid from  tuserrole where usid=#{id}))
+	</select>
+
+	<!-- 通用条件查询  不需要关联 -->
+	<select id="queryByCon" parameterType="QueryUser" resultType="TUser">
+		<!-- 调用SQL片段 -->
+			<include refid="selectot" />
+			<include refid="where" />
+			<include refid="order" />
+	</select>
+
+	<!-- 分页查询   -->
+	<select id="queryByPage" parameterType="QueryUser" resultMap="usermap2">
+		<!-- 调用SQL片段 -->
+		select * from 
+			(select rownum rn,t.* from 
+				(
+					<include refid="selectot" />
+					<include refid="where" />
+					<include refid="order" />
+				)t)t1
+			<include refid="page" />
+			
+	</select>
+	
+	<!-- SQL片段 -->
+	<!-- 查什么 -->
+	<sql id="selectot">
+		select * from tuser
+	</sql>
+	<!-- 查询条件 -->
+	<sql id="where">
+		<where><!-- 自动判断  是否加and -->     <!-- where 1=1恒等条件 被<where></where>替代-->
+				<!-- 判字符串 -->
+				<if test="loginname!=null and loginname!=''">
+					and loginname=#{loginname}
+				</if>
+				<!-- 模糊条件 -->
+				<if test="mohuname!=null and mohuname!=''">
+					and loginname like #{mohuname}
+				</if>
+				
+				<if test="password!=null and password!=''">
+					and password=#{password}
+				</if>
+				<!-- 判数字 --><!-- 数据库中不能存为0 -->
+			 	<if test="isenabled!=0"> 
+					and isenabled=#{isenabled}
+				</if>
+				<!-- 模糊条件 -->
+				<if test="mohuenabled!=null and mohuenabled!=''">
+					and isenabled=#{mohuenabled}
+				</if>
+				
+				<if test="sex!=null and sex!=''">
+					and sex=#{sex}
+				</if>
+				<if test="email!=null and email!=''">
+					and email=#{email}
+				</if>
+			</where>
+	</sql>
+	<!-- 排序 -->
+	<sql id="order">
+		order by id desc
+	</sql>
+	<!-- 分页 
+		大于号小于号要进行转义
+		大于号：&gt;
+		小于号:&lt;
+	 -->
+	<sql id="page">
+		<where>
+			<if test="page!=0">
+				and rn&gt;=#{start}
+			<!-- </if>
+			<if test="page!=0"> -->
+				and rn&lt;=#{end}
+			</if>
+		</where>
+	</sql>
+	
+	
+	
+	
+	<!-- 通过id查询      关联返回 -->
+	<select id="queryById" parameterType="int" resultMap="usermap">
+		select * from tuser where id=#{id}
+	</select>
+	
+	<!-- 批量删除 -->
+	<delete id="deleteByIds">
+		delete from tuser where id in
+		<!-- 循环     拼串(1,2,3)
+			collection:要遍历的类型 array数组  item：临时变量名 separator：分隔符
+			open：以(开始     close：以)结束
+		 -->
+		<foreach collection="array" item="id" separator="," open="(" close=")">
+			#{id}
+		</foreach>
+	</delete>
+	
+	<!-- 修改 -->
+	<update id="update" parameterType="TUser">
+		update tuser
+		<set>
+			<!-- 去掉最后一个, -->
+			<trim suffixOverrides=",">			<!-- 一个=是赋值 -->
+				<if test="relname!=null and relname!=''">
+					relname=#{relname},
+				</if>
+				<if test="sex!=null and sex!=''">
+					sex=#{sex},
+				</if>
+				<if test="birthday!=null">
+					birthday=#{birthday},
+				</if>
+				<if test="dept!=null">
+					dept=#{dept.id},<!-- 取部门id -->
+				</if>
+				<if test="email!=null and email!=''">
+					email=#{email},
+				</if>
+				<if test="isenabled!=0">
+					isenabled=#{isenabled},
+				</if>
+				<if test="password!=null and password!=''">
+					password=#{password},
+				</if>
+				<if test="updator!=0">
+					updator=#{updator},
+				</if>
+				<if test="pic!=null and pic!=''">
+					pic=#{pic},
+				</if>
+				updatime=sysdate,
+			</trim>
+		</set>
+		where id=#{id}
+	</update>
+	
+	<!-- 新增 -->
+	<insert id="insert" parameterType="TUser" >
+		<!-- 主键 -->
+		<selectKey keyProperty="id" order="BEFORE" resultType="int">
+			select SEQ_TUSER.Nextval from dual
+		</selectKey>
+		insert into tuser(id,loginname,password,sex,birthday,email,dept,relname,creator,creatime,pic,isenabled)
+		values(#{id},#{loginname},#{password},#{sex},#{birthday},#{email},#{dept.id},#{relname},#{creator},sysdate,#{pic},1)
+	</insert>
+	
+	<!-- 删除 -->
+	<delete id="deleteById" parameterType="int" >
+		delete from tuser where id=#{id}
+	</delete>
+	
+	<!-- 查询总条数 -->
+	<select id="queryCount" parameterType="QueryUser" resultType="int">
+		select count(1) from tuser
+		<include refid="where" />
+	</select>
+	
+	
+</mapper>

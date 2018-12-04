@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- 指向Dao接口 ，做dao实现 -->
+<mapper namespace="com.zs.pms.dao.ArticleDao">
+	
+	<resultMap type="TArticle" id="articlemap">
+		<!-- 
+			一对一关联                               所有的association放在一起
+			property 属性名
+			column   关联的字段名
+			select   关联执行的sql名称
+			执行完sql返回的对象赋值给属性dept
+		 -->
+		<association property="channel" column="channel" select="getChannel" />
+		
+		<!-- 
+			一对多关联                                 所有的collection放在一起
+			property 属性名
+			column   关联的字段名      用户 id
+			select   关联执行的sql名称
+			执行完sql返回的对象赋值给属性sals
+		 -->
+		
+		<!-- <collection property="permissions" column="id" select="getPermissions" ofType="TPermission" /> -->
+		
+	</resultMap>
+	<!-- 关联执行的sql 栏目 -->
+	<select id="getChannel" parameterType="int" resultType="TChannel">
+		select * from tchannel where id=#{channel}
+	</select>
+	
+
+	<!-- 通用条件查询  不需要关联 -->
+	<select id="queryByCon" parameterType="QueryArticle" resultType="TArticle">
+		<!-- 调用SQL片段 -->
+			<include refid="selectot" />
+			<include refid="where" />
+			<include refid="order" />
+	</select>
+
+	<!-- 分页查询  不需要关联 -->
+	<select id="queryByPage" parameterType="QueryArticle" resultMap="articlemap">
+		<!-- 调用SQL片段 -->
+		select * from 
+			(select rownum rn,t.* from 
+				(
+					<include refid="selectot" />
+					<include refid="where" />
+					<include refid="order" />
+				)t)t1
+			<include refid="page" />
+			
+	</select>
+	
+	<!-- SQL片段 -->
+	<!-- 查什么 -->
+	<sql id="selectot">
+		select * from tarticle
+	</sql>
+	<!-- 查询条件 -->
+	<sql id="where">
+		<where><!-- 自动判断  是否加and -->     <!-- where 1=1恒等条件 被<where></where>替代-->
+				<!-- 判字符串 -->
+				<if test="title!=null and title!=''">
+					and title=#{title}
+				</if>
+				<if test="mohutitle!=null and mohutitle!=''">
+					and title like #{mohutitle}
+				</if>
+				<if test="author!=null and author!=''">
+					and author=#{author}
+				</if>
+				<!-- 判数字 --><!-- 数据库中不能存为0 -->
+			 	<if test="channel!=0"> 
+					and channel=#{channel}
+				</if>
+				<if test="isremod!=0"> 
+					and isremod=#{isremod}
+				</if>
+				<if test="ishot!=0"> 
+					and ishot=#{ishot}
+				</if>
+				
+			</where>
+	</sql>
+	<!-- 排序 -->
+	<sql id="order">
+		order by id desc
+	</sql>
+	<!-- 分页 
+		大于号小于号要进行转义
+		大于号：&gt;
+		小于号:&lt;
+	 -->
+	<sql id="page">
+		<where>
+			<if test="page!=0">
+				and rn&gt;=#{start}
+			<!-- </if>
+			<if test="page!=0"> -->
+				and rn&lt;=#{end}
+			</if>
+		</where>
+	</sql>
+	
+	
+	
+	
+	<!-- 通过id查询      关联返回 -->
+	<select id="queryById" parameterType="int" resultMap="articlemap">
+		select * from tarticle where id=#{id}
+	</select>
+	
+	<!-- 批量删除 -->
+	<delete id="deleteByIds">
+		delete from tarticle where id in
+		<!-- 循环     拼串(1,2,3)
+			collection:要遍历的类型 array数组  item：临时变量名 separator：分隔符
+			open：以(开始     close：以)结束
+		 -->
+		<foreach collection="array" item="id" separator="," open="(" close=")">
+			#{id}
+		</foreach>
+	</delete>
+	
+	<!-- 修改 -->
+	<update id="update" parameterType="TArticle">
+		update tarticle
+		<set>
+			<!-- 去掉最后一个, -->
+			<trim suffixOverrides=",">			<!-- 一个=是赋值 -->
+				<if test="title!=null and title!=''">
+					title=#{title},
+				</if>
+				<if test="content!=null and content!=''">
+					content=#{content},
+				</if>
+				<if test="crtime!=null">
+					crtime=#{crtime},
+				</if>
+				<if test="channel!=null">
+					channel=#{channel.id},<!-- 取部门id -->
+				</if>
+				<if test="author!=null and author!=''">
+					author=#{author},
+				</if>
+				<if test="isremod!=0">
+					isremod=#{isremod},
+				</if>
+				<if test="ishot!=0">
+					ishot=#{ishot},
+				</if>
+				<if test="updator!=0">
+					updator=#{updator},
+				</if>
+				updatime=sysdate,
+			</trim>
+		</set>
+		where id=#{id}
+	</update>
+	
+	<!-- 新增 -->
+	<insert id="insert" parameterType="TArticle" >
+		<!-- 主键 -->
+		<selectKey keyProperty="id" order="BEFORE" resultType="int">
+			select SEQ_TARTICLE.Nextval from dual
+		</selectKey>
+		insert into tarticle(id,title,content,author,crtime,channel,isremod,ishot,creator,creatime)
+		values(#{id},#{title},#{content},#{author},#{crtime},#{channel.id},#{isremod},#{ishot},#{creator},sysdate)
+	</insert>
+	
+	<!-- 删除 -->
+	<delete id="deleteById" parameterType="int" >
+		delete from tarticle where id=#{id}
+	</delete>
+	
+	<!-- 查询总条数 -->
+	<select id="queryCount" parameterType="QueryArticle" resultType="int">
+		select count(1) from tarticle
+		<include refid="where" />
+	</select>
+	
+	
+</mapper>
